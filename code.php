@@ -62,11 +62,17 @@ function getLoginToken() {
 function loginRequest($logintoken) {
     global $endPoint;
 
-    $bot_username = $_ENV['bot_username'];
-    $bot_password = $_ENV['bot_password'];
+    $bot_username = $_ENV['bot_username'] ?? '';
+    $bot_password = $_ENV['bot_password'] ?? '';
 
-    echo "username: " . $bot_username . "\n"; // Updated for line break
-    echo "password: " . $bot_password . "\n"; // Updated for line break
+    echo "Debug: Username: " . $bot_username . "\n";
+    echo "Debug: Password is set: " . (empty($bot_password) ? "No" : "Yes") . "\n";
+    echo "Debug: Login token: " . $logintoken . "\n";
+
+    if (empty($bot_username) || empty($bot_password)) {
+        echo "Error: Bot username or password is not set in the environment variables.\n";
+        exit;
+    }
 
     $params2 = [
         "action" => "login",
@@ -77,7 +83,6 @@ function loginRequest($logintoken) {
     ];
 
     $ch = curl_init();
-
     curl_setopt($ch, CURLOPT_URL, $endPoint);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params2));
@@ -86,18 +91,35 @@ function loginRequest($logintoken) {
     curl_setopt($ch, CURLOPT_COOKIEFILE, "cookie.txt");
 
     $output = curl_exec($ch);
+
+    if ($output === false) {
+        echo "cURL Error: " . curl_error($ch) . "\n";
+        curl_close($ch);
+        exit;
+    }
+
     curl_close($ch);
 
-    echo "output: <br>" . $output . "\n"; // Updated for line break 
+    echo "API Response: " . $output . "\n";
 
     $result = json_decode($output, true);
 
-    // Check login status
-    if (isset($result['login']['result']) && $result['login']['result'] === 'Success') {
-        echo "Login successful.\n"; // Updated for line break
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo "JSON Decode Error: " . json_last_error_msg() . "\n";
+        exit;
+    }
+
+    if (isset($result['login']['result'])) {
+        if ($result['login']['result'] === 'Success') {
+            echo "Login successful.\n";
+        } else {
+            echo "Login failed: " . ($result['login']['reason'] ?? 'Unknown reason') . "\n";
+            exit;
+        }
     } else {
-        echo "Login failed: " . ($result['login']['reason'] ?? 'Unknown reason') . "\n"; // Updated for line break
-        exit; // Exit if login fails
+        echo "Unexpected API response structure. Full response:\n";
+        print_r($result);
+        exit;
     }
 }
 
