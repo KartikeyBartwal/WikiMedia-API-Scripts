@@ -9,27 +9,24 @@
 */
 
 require __DIR__ . '/vendor/autoload.php';
-
-// Load the .env file
-try {
-    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-    $dotenv->load();
-    echo "Dotenv loaded successfully.\n"; // Added <br> for line break
-} catch (Exception $e) {
-    echo "Error loading .env file: " . $e->getMessage() . "\n"; // Added <br> for line break
-}
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+echo "Dotenv loaded successfully.\n"; 
 
 $endPoint = "https://test.wikipedia.org/w/api.php";
+echo "Starting process to fetch login token.\n"; 
 
 $login_Token = getLoginToken(); // Step 1
-
-echo "login token: " . $login_Token . "\n"; // Updated for line break
+echo "Login token fetched successfully: $login_Token\n\n"; 
 
 loginRequest($login_Token); // Step 2
-$csrf_Token = getCSRFToken(); // Step 3
-// editRequest($csrf_Token); // Step 4
+echo "Starting process to fetch CSRF token.\n\n"; 
 
-echo "csrf_token: " . $csrf_Token . "\n"; // Updated for line break
+$csrf_Token = getCSRFToken(); // Step 3
+echo "CSRF token fetched successfully: $csrf_Token\n\n"; 
+
+editRequest($csrf_Token); // Step 4
+echo "Process complete.\n\n"; 
 
 // Step 1: GET request to fetch login token
 function getLoginToken() {
@@ -49,35 +46,26 @@ function getLoginToken() {
     curl_setopt($ch, CURLOPT_COOKIEJAR, "cookie.txt");
     curl_setopt($ch, CURLOPT_COOKIEFILE, "cookie.txt");
 
+    echo "Sending request to fetch login token.\n"; 
+
     $output = curl_exec($ch);
     curl_close($ch);
 
     $result = json_decode($output, true);
+    
+    echo "Login token response: " . json_encode($result) . "\n"; 
+
     return $result["query"]["tokens"]["logintoken"];
 }
 
-// Step 2: POST request to log in. Use of main account for login is not
-// supported. Obtain credentials via Special:BotPasswords
-// (https://www.mediawiki.org/wiki/Special:BotPasswords) for lgname & lgpassword
+// Step 2: POST request to log in
 function loginRequest($logintoken) {
     global $endPoint;
 
-    $bot_username = $_ENV['bot_username'] ?? '';
-    $bot_password = $_ENV['bot_password'] ?? '';
-
-    echo "Debug: Username: " . $bot_username . "\n";
-    echo "Debug: Password is set: " . (empty($bot_password) ? "No" : "Yes") . "\n";
-    echo "Debug: Login token: " . $logintoken . "\n";
-
-    if (empty($bot_username) || empty($bot_password)) {
-        echo "Error: Bot username or password is not set in the environment variables.\n";
-        exit;
-    }
-
     $params2 = [
         "action" => "login",
-        "lgname" => $bot_username,
-        "lgpassword" => $bot_password,
+        "lgname" => $_ENV["bot_username"],
+        "lgpassword" => $_ENV["bot_password"], 
         "lgtoken" => $logintoken,
         "format" => "json"
     ];
@@ -90,99 +78,91 @@ function loginRequest($logintoken) {
     curl_setopt($ch, CURLOPT_COOKIEJAR, "cookie.txt");
     curl_setopt($ch, CURLOPT_COOKIEFILE, "cookie.txt");
 
+    echo "Sending clientlogin request.\n\n\n";
+
     $output = curl_exec($ch);
-
-    if ($output === false) {
-        echo "cURL Error: " . curl_error($ch) . "\n";
-        curl_close($ch);
-        exit;
-    }
-
     curl_close($ch);
-
-    echo "API Response: " . $output . "\n";
-
+    
     $result = json_decode($output, true);
-
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        echo "JSON Decode Error: " . json_last_error_msg() . "\n";
-        exit;
-    }
-
-    if (isset($result['login']['result'])) {
-        if ($result['login']['result'] === 'Success') {
-            echo "Login successful.\n";
-        } else {
-            echo "Login failed: " . ($result['login']['reason'] ?? 'Unknown reason') . "\n";
-            exit;
-        }
-    } else {
-        echo "Unexpected API response structure. Full response:\n";
-        print_r($result);
-        exit;
-    }
+    
+    echo "Full clientlogin response: " . $output . "\n\n";
+    
+    echo "result: " . json_encode($result) . "\n\n"; 
 }
 
 // Step 3: GET request to fetch CSRF token
 function getCSRFToken() {
-	global $endPoint;
+    global $endPoint;
 
-	$params3 = [
-		"action" => "query",
-		"meta" => "tokens",
-		"format" => "json"
-	];
+    $params3 = [
+        "action" => "query",
+        "meta" => "tokens",
+        "format" => "json"
+    ];
 
-	$url = $endPoint . "?" . http_build_query( $params3 );
+    $url = $endPoint . "?" . http_build_query($params3);
 
-	$ch = curl_init( $url );
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_COOKIEJAR, "cookie.txt");
+    curl_setopt($ch, CURLOPT_COOKIEFILE, "cookie.txt");
 
-	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $ch, CURLOPT_COOKIEJAR, "cookie.txt" );
-	curl_setopt( $ch, CURLOPT_COOKIEFILE, "cookie.txt" );
+    echo "Sending request to fetch CSRF token.\n"; 
 
-	$output = curl_exec( $ch );
-	curl_close( $ch );
+    $output = curl_exec($ch);
+    curl_close($ch);
 
-	$result = json_decode( $output, true );
-	return $result["query"]["tokens"]["csrftoken"];
+    $result = json_decode($output, true);
+    
+    echo "CSRF token response: " . json_encode($result) . "\n"; 
+
+    return $result["query"]["tokens"]["csrftoken"];
 }
 
 // Step 4: POST request to edit a page
-function editRequest( $csrftoken ) {
-	global $endPoint;
+function editRequest($csrftoken) {
+    global $endPoint;
 
-	$wikiassignment_subpage_text = "
-    == Kartikey's section ==
-    Greetings everyone! Welcome to the section.
+    $wikiassignment_subpage_text = "
+    == Kartikey's Section ==
 
-    === Kartikey's subsection ===
-    and here is my subsection! To all the wiki tech team, I am loving all of your sessions. Thank you very much for your hospitality!
+    Greetings everyone! Welcome to my section. In this section, I will share my experiences and insights from the wiki tech sessions.
 
-    See more details on [[User:Kartikey_Singh_Bartwal]].
+    === Kartikey's Subsection ===
 
-    External resource: [https://www.mediawiki.org/wiki/API:Edit MediaWiki API Documentation]
+    In this subsection, I want to express my gratitude to the wiki tech team. I am truly enjoying all of your sessions and learning a lot. Thank you very much for your hospitality!
+
+    === More Information ===
+
+    For more details, please visit my user page: [[User:Kartikey_Singh_Bartwal]].
+
+    === External Resources ===
+
+    * [https://www.mediawiki.org/wiki/API:Edit MediaWiki API Documentation MediaWiki API Documentation]
+    * [https://www.mediawiki.org/wiki/Help:Editing Editing]
     ";
 
-	$params4 = [
-		"action" => "edit",
-		"title" => "User:Kartikey_Singh_Bartwal/wikiassignment",
-		"text" => $wikiassignment_subpage_text,
-		"token" => $csrftoken,
-		"format" => "json"
-	];
+    $params4 = [
+        "action" => "edit",
+        "title" => "User:Kartikey Singh Bartwal/wikiassignment",
+        "text" => $wikiassignment_subpage_text,
+        "token" => $csrftoken,
+        "format" => "json"
+    ];
 
-	$ch = curl_init();
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $endPoint);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params4));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_COOKIEJAR, "cookie.txt");
+    curl_setopt($ch, CURLOPT_COOKIEFILE, "cookie.txt");
 
-	curl_setopt( $ch, CURLOPT_URL, $endPoint );
-	curl_setopt( $ch, CURLOPT_POST, true );
-	curl_setopt( $ch, CURLOPT_POSTFIELDS, http_build_query( $params4 ) );
-	curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
-	curl_setopt( $ch, CURLOPT_COOKIEJAR, "cookie.txt" );
-	curl_setopt( $ch, CURLOPT_COOKIEFILE, "cookie.txt" );
+    echo "Sending edit request to update the page.\n"; 
 
-	$output = curl_exec( $ch );
-	curl_close( $ch );
+    $output = curl_exec($ch);
+    curl_close($ch);
 
-	echo ( $output );
+    echo "Edit request response: $output\n"; 
 }
+
